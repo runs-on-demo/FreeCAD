@@ -28,24 +28,6 @@ name: Build Ubuntu 24.04
 
 on:
   workflow_dispatch:
-    inputs:
-      artifactBasename:
-        description: Artifact name prefix
-        type: string
-        required: true
-        default: Ubuntu-pool-demo
-      testOnBuildDir:
-        description: Also run CLI and GUI tests from the build directory
-        type: boolean
-        default: false
-      testCoinNodeSnapshots:
-        description: Run Coin node snapshot visual tests
-        type: boolean
-        default: true
-      allowedToFail:
-        description: Allow the build job to fail
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       artifactBasename:
@@ -74,7 +56,7 @@ jobs:
 
   Build:
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ inputs.allowedToFail }}
+    continue-on-error: ${{ inputs.allowedToFail || false }}
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpfullversion -dumpversion" # default:mtime
       CCACHE_COMPRESS: true
@@ -94,7 +76,7 @@ jobs:
       config: release
       logdir: /tmp/logs/
       reportdir: /tmp/report/
-      reportfilename: ${{ inputs.artifactBasename }}-report.md
+      reportfilename: ${{ inputs.artifactBasename || format('Ubuntu-{0}', github.run_id) }}-report.md
     defaults:
       run:
         shell: bash
@@ -184,7 +166,7 @@ jobs:
           ccache -s
 
       - name: FreeCAD CLI tests on build dir
-        if: inputs.testOnBuildDir
+        if: inputs.testOnBuildDir == true
         timeout-minutes: 10
         uses: ./.github/workflows/actions/runPythonTests
         with:
@@ -194,7 +176,7 @@ jobs:
           reportFile: ${{env.reportdir}}${{ env.reportfilename }}
 
       - name: FreeCAD GUI tests on build dir
-        if: inputs.testOnBuildDir
+        if: inputs.testOnBuildDir == true
         timeout-minutes: 15
         uses: ./.github/workflows/actions/runPythonTests
         with:
@@ -205,7 +187,8 @@ jobs:
           reportFile: ${{env.reportdir}}${{ env.reportfilename }}
 
       - name: Coin node snapshot visual tests on build dir
-        if: inputs.testCoinNodeSnapshots
+        # Manual runs omit inputs; preserve explicit false from reusable callers.
+        if: toJSON(inputs.testCoinNodeSnapshots) != 'false'
         timeout-minutes: 15
         uses: ./.github/workflows/actions/runPythonTests
         with:
@@ -218,10 +201,10 @@ jobs:
           reportFile: ${{env.reportdir}}${{ env.reportfilename }}
 
       - name: Upload Coin node snapshot artifacts (on failure)
-        if: failure() && inputs.testCoinNodeSnapshots
+        if: failure() && toJSON(inputs.testCoinNodeSnapshots) != 'false'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.artifactBasename }}-CoinNodeSnapshots
+          name: ${{ inputs.artifactBasename || format('Ubuntu-{0}', github.run_id) }}-CoinNodeSnapshots
           path: /tmp/FreeCADTesting/CoinNodeSnapshots
 
       - name: C++ tests
@@ -271,7 +254,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.artifactBasename }}-Logs
+          name: ${{ inputs.artifactBasename || format('Ubuntu-{0}', github.run_id) }}-Logs
           path: |
             ${{ env.logdir }}
             /var/crash/*FreeCAD*
