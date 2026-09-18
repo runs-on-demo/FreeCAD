@@ -27,6 +27,25 @@
 name: Build Ubuntu 24.04
 
 on:
+  workflow_dispatch:
+    inputs:
+      artifactBasename:
+        description: Artifact name prefix
+        type: string
+        required: true
+        default: Ubuntu-pool-demo
+      testOnBuildDir:
+        description: Also run CLI and GUI tests from the build directory
+        type: boolean
+        default: false
+      testCoinNodeSnapshots:
+        description: Run Coin node snapshot visual tests
+        type: boolean
+        default: true
+      allowedToFail:
+        description: Allow the build job to fail
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       artifactBasename:
