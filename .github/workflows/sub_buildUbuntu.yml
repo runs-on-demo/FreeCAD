@@ -55,7 +55,7 @@ permissions:
 jobs:
 
   Build:
-    runs-on: runs-on/fleet=linux-freecad-build/env=demo
+    runs-on: ubuntu-24.04
     continue-on-error: ${{ inputs.allowedToFail || false }}
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpfullversion -dumpversion" # default:mtime
@@ -94,13 +94,13 @@ jobs:
         with:
           submodules: true
 
-      # - name: Install FreeCAD dependencies
-      #   run: ./package/ubuntu/install-apt-packages.sh
-      - name: Verify preinstalled FreeCAD dependencies
-        run: |
-          cd package/ubuntu
-          sha256sum --check /opt/freecad-preinstall/manifest.sha256
-          sudo apt-get check
+      - name: Install FreeCAD dependencies
+        run: ./package/ubuntu/install-apt-packages.sh
+      # - name: Verify preinstalled FreeCAD dependencies
+      #   run: |
+      #     cd package/ubuntu
+      #     sha256sum --check /opt/freecad-preinstall/manifest.sha256
+      #     sudo apt-get check
 
       - name: Install FreeCAD Python test dependencies
         run: |
