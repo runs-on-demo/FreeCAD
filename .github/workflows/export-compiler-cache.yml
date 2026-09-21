@@ -1,0 +1,22 @@
+name: Export GitHub compiler cache
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ github.workspace }}/ccache
+          key: FC-Ubuntu24.04.5LTS-g++13.3.0-qt5-refs/heads/main-35349384006
+          fail-on-cache-miss: true
+      - name: Pack compiler cache
+        run: tar -czf compiler-cache.tar.gz ccache
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: github-ubuntu-compiler-cache
+          path: compiler-cache.tar.gz
+          retention-days: 7
+          compression-level: 0
