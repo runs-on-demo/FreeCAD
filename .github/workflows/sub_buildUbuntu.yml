@@ -55,7 +55,7 @@ permissions:
 jobs:
 
   Build:
-    runs-on: runs-on=${{ github.run_id }}/family=m8azn.xlarge/image=ubuntu24-full-x64/extras=otel/env=demo
+    runs-on: runs-on=${{ github.run_id }}/family=m8azn.xlarge/image=ubuntu24-full-x64/extras=otel/env=demo-vid
     continue-on-error: ${{ inputs.allowedToFail || false }}
     env:
       # Google Test timestamps must use UTC for report-based spans.
