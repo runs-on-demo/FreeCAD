@@ -55,9 +55,12 @@ permissions:
 jobs:
 
   Build:
-    runs-on: github24-4cpu-x64
+    runs-on: runs-on=${{ github.run_id }}/family=m8azn.xlarge/image=ubuntu24-full-x64/extras=otel/env=demo
     continue-on-error: ${{ inputs.allowedToFail || false }}
     env:
+      # Google Test timestamps must use UTC for report-based spans.
+      TZ: UTC
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:4318
       CCACHE_COMPILERCHECK: "%compiler% -dumpfullversion -dumpversion" # default:mtime
       CCACHE_COMPRESS: true
       CCACHE_COMPRESSLEVEL: 5
@@ -75,7 +78,7 @@ jobs:
       builddir: ${{ github.workspace }}/build/release/
       config: release
       logdir: /tmp/logs/
-      reportdir: /tmp/report/
+      reportdir: ${{ runner.temp }}/freecad-report-${{ github.run_id }}-${{ github.run_attempt }}/
       reportfilename: ${{ inputs.artifactBasename || format('Ubuntu-{0}', github.run_id) }}-report.md
     defaults:
       run:
@@ -219,6 +222,18 @@ jobs:
           reportdir: ${{ env.reportdir }}
           builddir: ${{ env.builddir }}
           reportFile: ${{ env.reportdir }}${{ env.reportfilename }}
+
+      - name: Export C++ test traces and assertion logs
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          python3 -m pip install --target "$RUNNER_TEMP/otel-python" opentelemetry-proto==1.37.0
+          PYTHONPATH="$RUNNER_TEMP/otel-python" python3 .github/scripts/export_gtest_otel.py "$reportdir"
+
+      - name: Allow local collector to flush
+        if: always()
+        run: sleep 15
 
       - name: CMake Install
         uses: ./.github/workflows/actions/linux/install
