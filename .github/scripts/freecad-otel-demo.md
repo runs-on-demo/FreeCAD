@@ -1,44 +1,67 @@
 # FreeCAD local collector demo
 
-`sub_buildUbuntu.yml` enables `extras=otel` and sends Google Test report telemetry
-to the runner's local OTLP/HTTP collector at `http://127.0.0.1:4318`.
-The Fleet stack must configure the remote OTLP backend with traces and logs enabled,
-and use a runner version supporting the local receiver (RunsOn v3.2.1+).
-No backend credentials are needed in this workflow.
+The Ubuntu workflow enables `extras=otel`. Its Python CLI, GUI, and snapshot tests
+send spans and failure logs directly through the runner's local collector at
+`http://127.0.0.1:4318`. The RunsOn stack must configure a remote backend with
+traces and logs enabled. The stack's GitHub App needs access to this repository.
+No backend credentials are needed in the workflow.
+
+## Direct Python instrumentation
+
+The workflow installs the pinned Python OTel SDK and OTLP/HTTP exporter into
+`$RUNNER_TEMP/otel-python`. Each Python test step adds that directory to
+`PYTHONPATH` so FreeCAD's embedded Python can import them. This assumes the Ubuntu
+build uses the same system Python ABI as `python3`; verify on the first CI run.
+
+`FREECAD_TEST_OTEL=true` activates `TelemetryTestRunner.py`, packaged alongside
+FreeCAD's TestApp module for both build-directory and installed-app testing.
+Without this flag, the standard unittest runner is used and no OTel imports occur.
+`FREECAD_TEST_GROUP` identifies CLI, GUI, snapshot, build, and installed test groups.
+
+The runner starts a group span, then an active span for each test. Assertion failures,
+exceptions, and failed subtests mark the test span as Error and emit a log containing
+the actual traceback with that span's trace/span IDs. Expected failures are not
+errors; unexpected successes are. Skipped tests get spans labeled `test.status=skipped`.
+Fixture failures get diagnostic spans at error-report time, not fixture-duration spans.
+Normal console output and unittest outcomes are preserved. Arbitrary stdout is not
+exported as logs. Child operations require additional instrumentation.
+
+The SDK batches telemetry during execution and flushes/shuts down both providers
+before the test runner returns. A hard kill can lose pending telemetry or unfinished
+spans. Exporter errors are reported by the SDK and do not prove test failures.
+Python no longer writes intermediate JSON telemetry reports.
+
+## C++ results
+
+C++ tests still run and produce their existing JSON reports, but the workflow does
+not export them as telemetry. The demo uses direct Python instrumentation only.
+The workflow waits 15 seconds for the local collector and uploads the report directory.
 
 ## Recording
 
-1. Run Build Ubuntu 24.04 and wait for C++ tests and the export step to finish.
-2. In SigNoz Traces Explorer, filter `service.name = freecad-tests` and
-   `github.run.id` to the GitHub run ID. Select the matching run attempt as needed.
-3. Open a module span and expand individual test spans. Their durations come from
-   Google Test reports. Compare test durations to identify the slowest test.
-4. If a test actually failed, select its error span and open Logs to see the
-   assertion text from Google Test, linked by native trace ID and span ID.
-5. Optionally compare the test time window with that runner's CPU and memory.
-   Host metrics are not measurements of an individual test's resource usage.
+1. Run **Build Ubuntu 24.04** from the branch with these changes.
+2. In SigNoz, filter `service.name = freecad-tests` and `github.run.id` to this run.
+3. For the direct instrumentation demo, filter `telemetry.source = unittest-direct`.
+4. Open a Python test group and inspect individual test durations.
+5. For a failed test, open its Logs tab for its assertion/exception traceback.
 
-No failures or delays are injected. A successful run has no assertion failure logs.
-Prepare a deliberately failing test in a demo branch if you need a repeatable failure.
-The exporter sends assertion messages, not arbitrary stdout/stderr or full job logs.
-It covers `*_gtest_results.json`; Qt and Python reports are not included.
-A crash or timeout that prevents a complete report may leave no test spans.
+No failure is injected. A passing run has no failure logs. Prepare a failing test
+on a demo branch for a repeatable failure walkthrough. Workflow steps skipped after
+an earlier failure remain skipped; telemetry does not change test execution conditions.
+Runner CPU/memory metrics describe the host, not individual test resource consumption.
 
-The exporter preserves TRACEPARENT when available, attaching module spans to the
-runner runtime context. It does not attach them to synthetic GitHub step spans.
-Without TRACEPARENT, it creates a separate trace discoverable by run ID.
-The workflow uses UTC so report timestamps without an offset are interpreted correctly.
-Telemetry export is best effort: export failure is visible in its step but does not
-change the test result. Local acceptance does not guarantee remote backend delivery.
+The group spans inherit RunsOn's TRACEPARENT when available, attaching to the runner
+runtime context, not synthetic GitHub step spans. Without it, each invocation starts
+a new trace discoverable by run ID. Telemetry uses SDK providers local to the test
+runner and does not replace an application's global OTel providers.
 
 ## Local validation
 
-Install `opentelemetry-proto==1.37.0` in a virtual environment, then run:
+Install `opentelemetry-sdk==1.37.0` and
+`opentelemetry-exporter-otlp-proto-http==1.37.0` in a virtual environment, then run:
 
 ```sh
-python .github/scripts/test_export_gtest_otel.py
+python .github/scripts/test_python_telemetry.py
 ```
 
-Tests use representative Google Test reports and validate timings, skipped tests,
-error status, assertion linkage, protobuf encoding, and partial rejection handling.
-An end-to-end run on the Fleet runner is still required.
+A full FreeCAD CI run is required to verify embedded-Python imports and SigNoz delivery.

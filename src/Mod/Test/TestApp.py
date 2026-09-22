@@ -24,6 +24,7 @@
 import FreeCAD
 import sys
 import unittest
+from TelemetryTestRunner import text_test_runner
 
 # ---------------------------------------------------------------------------
 # define the functions to test the FreeCAD base code
@@ -82,7 +83,7 @@ def PrintAll():
 
 def TestText(s):
     s = unittest.defaultTestLoader.loadTestsFromName(s)
-    r = unittest.TextTestRunner(stream=sys.stdout, verbosity=2)
+    r = text_test_runner(stream=sys.stdout, verbosity=2)
     retval = r.run(s)
     # Flushing to make sure the stream is written to the console
     # before the wrapping process stops executing. Without this line
@@ -99,7 +100,7 @@ def RunConfiguredTextTest():
     suite = unittest.TestSuite()
     for tc in test_cases:
         suite.addTest(tryLoadingTest(tc))
-    r = unittest.TextTestRunner(stream=sys.stdout, verbosity=2)
+    r = text_test_runner(stream=sys.stdout, verbosity=2)
     sys.stdout.flush()
     return r.run(suite)
 
@@ -109,7 +110,7 @@ def Test(s):
 
 
 def testAll():
-    r = unittest.TextTestRunner(stream=sys.stdout, verbosity=2)
+    r = text_test_runner(stream=sys.stdout, verbosity=2)
     return r.run(All())
 
 

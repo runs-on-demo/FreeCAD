@@ -173,10 +173,20 @@ jobs:
         run: |
           ccache -s
 
+      - name: Install Python OpenTelemetry SDK
+        run: |
+          python3 -m pip install --target "$RUNNER_TEMP/otel-python" \
+            opentelemetry-sdk==1.37.0 \
+            opentelemetry-exporter-otlp-proto-http==1.37.0
+
       - name: FreeCAD CLI tests on build dir
         if: inputs.testOnBuildDir == true
         timeout-minutes: 10
         uses: ./.github/workflows/actions/runPythonTests
+        env:
+          FREECAD_TEST_OTEL: "true"
+          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_TEST_GROUP: "FreeCAD CLI tests on build dir"
         with:
           testDescription: "CLI tests on build dir"
           testCommand: ${{ env.builddir }}/bin/FreeCADCmd -t 0
@@ -187,6 +197,10 @@ jobs:
         if: inputs.testOnBuildDir == true
         timeout-minutes: 15
         uses: ./.github/workflows/actions/runPythonTests
+        env:
+          FREECAD_TEST_OTEL: "true"
+          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_TEST_GROUP: "FreeCAD GUI tests on build dir"
         with:
           testDescription: "GUI tests on build dir"
           # Use Python wrapper to run only GUI-registered tests with the built FreeCAD executable
@@ -199,6 +213,10 @@ jobs:
         if: toJSON(inputs.testCoinNodeSnapshots) != 'false'
         timeout-minutes: 15
         uses: ./.github/workflows/actions/runPythonTests
+        env:
+          FREECAD_TEST_OTEL: "true"
+          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_TEST_GROUP: "Coin node snapshot visual tests on build dir"
         with:
           testDescription: "Coin node snapshot visual tests on build dir"
           testCommand: |
@@ -223,18 +241,6 @@ jobs:
           builddir: ${{ env.builddir }}
           reportFile: ${{ env.reportdir }}${{ env.reportfilename }}
 
-      - name: Export C++ test traces and assertion logs
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 3
-        run: |
-          python3 -m pip install --target "$RUNNER_TEMP/otel-python" opentelemetry-proto==1.37.0
-          PYTHONPATH="$RUNNER_TEMP/otel-python" python3 .github/scripts/export_gtest_otel.py "$reportdir"
-
-      - name: Allow local collector to flush
-        if: always()
-        run: sleep 15
-
       - name: CMake Install
         uses: ./.github/workflows/actions/linux/install
         with:
@@ -246,6 +252,10 @@ jobs:
       - name: FreeCAD CLI tests on install
         timeout-minutes: 10
         uses: ./.github/workflows/actions/runPythonTests
+        env:
+          FREECAD_TEST_OTEL: "true"
+          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_TEST_GROUP: "FreeCAD CLI tests on install"
         with:
           testDescription: "CLI tests on install"
           testCommand: FreeCADCmd -t 0
@@ -255,12 +265,20 @@ jobs:
       - name: FreeCAD GUI tests on install
         timeout-minutes: 15
         uses: ./.github/workflows/actions/runPythonTests
+        env:
+          FREECAD_TEST_OTEL: "true"
+          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_TEST_GROUP: "FreeCAD GUI tests on install"
         with:
           testDescription: "GUI tests on install"
           # Use Python wrapper to run only GUI-registered tests using the installed FreeCAD
           testCommand: xvfb-run python3 ./.github/scripts/run_gui_tests.py "FreeCAD"
           logFile: ${{ env.logdir }}TestGUIInstall.log
           reportFile: ${{env.reportdir}}${{ env.reportfilename }}
+
+      - name: Allow local collector to flush
+        if: always()
+        run: sleep 15
 
       - name: Save Compiler Cache
         id: cache-save
@@ -285,4 +303,4 @@ jobs:
         with:
           name: ${{ env.reportfilename }}
           path: |
-            ${{env.reportdir}}${{ env.reportfilename }}
+            ${{ env.reportdir }}
