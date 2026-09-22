@@ -9,8 +9,9 @@ No backend credentials are needed in the workflow.
 ## Direct Python instrumentation
 
 The workflow installs the pinned Python OTel SDK and OTLP/HTTP exporter into
-`$RUNNER_TEMP/otel-python`. Each Python test step adds that directory to
-`PYTHONPATH` so FreeCAD's embedded Python can import them. This assumes the Ubuntu
+`$RUNNER_TEMP/otel-python`. Each Python test step sets
+`FREECAD_OTEL_PYTHONPATH`; the opt-in runner adds that directory to `sys.path`
+explicitly because FreeCAD ignores `PYTHONPATH` during Python initialization. This assumes the Ubuntu
 build uses the same system Python ABI as `python3`; verify on the first CI run.
 
 `FREECAD_TEST_OTEL=true` activates `TelemetryTestRunner.py`, packaged alongside

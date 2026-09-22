@@ -2,6 +2,7 @@
 """Opt-in direct OpenTelemetry instrumentation for FreeCAD unittest commands."""
 import logging
 import os
+import sys
 import unittest
 
 
@@ -9,6 +10,10 @@ def text_test_runner(**kwargs):
     # Normal FreeCAD installs do not require OpenTelemetry packages.
     if os.getenv('FREECAD_TEST_OTEL') != 'true':
         return unittest.TextTestRunner(**kwargs)
+    # FreeCAD's embedded Python ignores PYTHONPATH during initialization.
+    sdk_path = os.getenv('FREECAD_OTEL_PYTHONPATH')
+    if sdk_path and sdk_path not in sys.path:
+        sys.path.insert(0, sdk_path)
     return TelemetryRunner(**kwargs)
 
 

@@ -2,6 +2,7 @@ import io
 import os
 from pathlib import Path
 import sys
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -80,6 +81,27 @@ class DirectTelemetryTests(unittest.TestCase):
         self.assertEqual(len(spans), 2)
         self.assertEqual(len(logs), 1)
         self.assertIn('fixture failed', logs[0].body)
+
+    def test_sdk_import_with_python_environment_disabled(self):
+        import opentelemetry.sdk.trace
+        sdk_dir = str(Path(opentelemetry.sdk.trace.__file__).parents[3])
+        runner_path = str(Path(__file__).resolve().parents[2] / 'src/Mod/Test/TelemetryTestRunner.py')
+        code = """
+import importlib.util
+import os
+import runpy
+import sys
+assert importlib.util.find_spec('opentelemetry') is None
+os.environ['FREECAD_TEST_OTEL'] = 'true'
+os.environ['FREECAD_OTEL_PYTHONPATH'] = sys.argv[2]
+module = runpy.run_path(sys.argv[1])
+module['text_test_runner']()
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+"""
+        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, runner_path, sdk_dir],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_disabled_uses_standard_runner(self):
         with patch.dict(os.environ, {'FREECAD_TEST_OTEL': ''}):

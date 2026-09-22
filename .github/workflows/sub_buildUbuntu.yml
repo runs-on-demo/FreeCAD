@@ -185,7 +185,7 @@ jobs:
         uses: ./.github/workflows/actions/runPythonTests
         env:
           FREECAD_TEST_OTEL: "true"
-          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_OTEL_PYTHONPATH: ${{ runner.temp }}/otel-python
           FREECAD_TEST_GROUP: "FreeCAD CLI tests on build dir"
         with:
           testDescription: "CLI tests on build dir"
@@ -199,7 +199,7 @@ jobs:
         uses: ./.github/workflows/actions/runPythonTests
         env:
           FREECAD_TEST_OTEL: "true"
-          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_OTEL_PYTHONPATH: ${{ runner.temp }}/otel-python
           FREECAD_TEST_GROUP: "FreeCAD GUI tests on build dir"
         with:
           testDescription: "GUI tests on build dir"
@@ -215,7 +215,7 @@ jobs:
         uses: ./.github/workflows/actions/runPythonTests
         env:
           FREECAD_TEST_OTEL: "true"
-          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_OTEL_PYTHONPATH: ${{ runner.temp }}/otel-python
           FREECAD_TEST_GROUP: "Coin node snapshot visual tests on build dir"
         with:
           testDescription: "Coin node snapshot visual tests on build dir"
@@ -254,7 +254,7 @@ jobs:
         uses: ./.github/workflows/actions/runPythonTests
         env:
           FREECAD_TEST_OTEL: "true"
-          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_OTEL_PYTHONPATH: ${{ runner.temp }}/otel-python
           FREECAD_TEST_GROUP: "FreeCAD CLI tests on install"
         with:
           testDescription: "CLI tests on install"
@@ -267,7 +267,7 @@ jobs:
         uses: ./.github/workflows/actions/runPythonTests
         env:
           FREECAD_TEST_OTEL: "true"
-          PYTHONPATH: ${{ runner.temp }}/otel-python
+          FREECAD_OTEL_PYTHONPATH: ${{ runner.temp }}/otel-python
           FREECAD_TEST_GROUP: "FreeCAD GUI tests on install"
         with:
           testDescription: "GUI tests on install"
