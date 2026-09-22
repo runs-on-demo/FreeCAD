@@ -1,7 +1,7 @@
 # FreeCAD local collector demo
 
-The Ubuntu workflow enables `extras=otel`. Its Python CLI, GUI, and snapshot tests
-send spans and failure logs directly through the runner's local collector at
+The Ubuntu workflow enables `extras=otel`. Only the `TestCoinNodeSnapshots` Python test step
+sends spans and failure logs directly through the runner's local collector at
 `http://127.0.0.1:4318`. The RunsOn stack must configure a remote backend with
 traces and logs enabled. The stack's GitHub App needs access to this repository.
 No backend credentials are needed in the workflow.
@@ -9,7 +9,7 @@ No backend credentials are needed in the workflow.
 ## Direct Python instrumentation
 
 The workflow installs the pinned Python OTel SDK and OTLP/HTTP exporter into
-`$RUNNER_TEMP/otel-python`. Each Python test step sets
+`$RUNNER_TEMP/otel-python`. The snapshot test step sets
 `FREECAD_OTEL_PYTHONPATH`; the opt-in runner adds that directory to `sys.path`
 explicitly because FreeCAD ignores `PYTHONPATH` during Python initialization. This assumes the Ubuntu
 build uses the same system Python ABI as `python3`; verify on the first CI run.
@@ -17,7 +17,11 @@ build uses the same system Python ABI as `python3`; verify on the first CI run.
 `FREECAD_TEST_OTEL=true` activates `TelemetryTestRunner.py`, packaged alongside
 FreeCAD's TestApp module for both build-directory and installed-app testing.
 Without this flag, the standard unittest runner is used and no OTel imports occur.
-`FREECAD_TEST_GROUP` identifies CLI, GUI, snapshot, build, and installed test groups.
+`FREECAD_TEST_GROUP` is `GUI snapshots / TestCoinNodeSnapshots / build`.
+This selects seven test methods in the snapshot module for instrumentation. The
+other CLI and GUI steps still run normally with telemetry disabled. Individual
+spans retain their full test IDs, distinguishing the test methods inside the group.
+If snapshot testing is disabled, this workflow produces no custom Python test spans.
 
 The runner starts a group span, then an active span for each test. Assertion failures,
 exceptions, and failed subtests mark the test span as Error and emit a log containing
@@ -43,7 +47,7 @@ The workflow waits 15 seconds for the local collector and uploads the report dir
 1. Run **Build Ubuntu 24.04** from the branch with these changes.
 2. In SigNoz, filter `service.name = freecad-tests` and `github.run.id` to this run.
 3. For the direct instrumentation demo, filter `telemetry.source = unittest-direct`.
-4. Open a Python test group and inspect individual test durations.
+4. Open `GUI snapshots / TestCoinNodeSnapshots / build` and inspect its test spans.
 5. For a failed test, open its Logs tab for its assertion/exception traceback.
 
 No failure is injected. A passing run has no failure logs. Prepare a failing test
