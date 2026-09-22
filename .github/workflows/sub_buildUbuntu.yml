@@ -78,7 +78,7 @@ jobs:
       builddir: ${{ github.workspace }}/build/release/
       config: release
       logdir: /tmp/logs/
-      reportdir: ${{ runner.temp }}/freecad-report-${{ github.run_id }}-${{ github.run_attempt }}/
+      reportdir: /tmp/freecad-report-${{ github.run_id }}-${{ github.run_attempt }}/
       reportfilename: ${{ inputs.artifactBasename || format('Ubuntu-{0}', github.run_id) }}-report.md
     defaults:
       run:
