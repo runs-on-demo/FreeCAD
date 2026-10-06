@@ -1,0 +1,34 @@
+diff --git a/src/Mod/Part/App/FeatureCompound.cpp b/src/Mod/Part/App/FeatureCompound.cpp
+index 19a2964..a280c9f 100644
+--- a/src/Mod/Part/App/FeatureCompound.cpp
++++ b/src/Mod/Part/App/FeatureCompound.cpp
+@@ -61,7 +61,7 @@ App::DocumentObjectExecReturn* Compound::execute()
+ 
+         std::vector<TopoShape> shapes;
+         for (auto obj : Links.getValues()) {
+-            if (!tempLinks.insert(obj).second) {
++            if (!obj || !tempLinks.insert(obj).second) {
+                 continue;
+             }
+             auto sh = Feature::getTopoShape(obj, ShapeOption::ResolveLink | ShapeOption::Transform);
+diff --git a/tests/src/Mod/Part/App/FeatureCompound.cpp b/tests/src/Mod/Part/App/FeatureCompound.cpp
+index 219bb88..439866b 100644
+--- a/tests/src/Mod/Part/App/FeatureCompound.cpp
++++ b/tests/src/Mod/Part/App/FeatureCompound.cpp
+@@ -57,3 +57,16 @@ TEST_F(FeatureCompoundTest, testNonIntersecting)
+     EXPECT_TRUE(PartTestHelpers::boxesMatch(bb, Base::BoundBox3d(0.0, 0.0, 0.0, 1.0, 5.0, 3.0)));
+     EXPECT_EQ(ts.countSubShapes(TopAbs_SHAPE), 2);
+ }
++
++TEST_F(FeatureCompoundTest, testDuplicateLinksAreIgnored)
++{
++    // Arrange
++    _compound->Links.setValues({_boxes[0], _boxes[0], _boxes[2]});
++    // Act
++    _compound->execute();
++    Part::TopoShape ts = _compound->Shape.getValue();
++    double volume = PartTestHelpers::getVolume(ts.getShape());
++    // Assert
++    EXPECT_DOUBLE_EQ(volume, 12.0);
++    EXPECT_EQ(ts.countSubShapes(TopAbs_SHAPE), 2);
++}
