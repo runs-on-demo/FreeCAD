@@ -44,6 +44,8 @@ on:
           - github24-4cpu-x64
           - m8azn.large
           - m8azn.xlarge
+          - fleet=linux-freecad-build
+          - fleet=linux-freecad-build-large
       cache:
         type: choice
         required: true
@@ -63,7 +65,7 @@ permissions:
 jobs:
 
   Build:
-    runs-on: ${{ startsWith(inputs.runner, 'm8azn.') && format('runs-on={0}/family={1}/image=ubuntu24-full-x64/env=demo', github.run_id, inputs.runner) || inputs.runner }}
+    runs-on: ${{ startsWith(inputs.runner, 'm8azn.') && format('runs-on={0}/family={1}/image=ubuntu24-full-x64/env=demo', github.run_id, inputs.runner) || startsWith(inputs.runner, 'fleet=') && format('runs-on/{0}/env=demo', inputs.runner) || inputs.runner }}
     continue-on-error: ${{ inputs.allowedToFail || false }}
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpfullversion -dumpversion" # default:mtime
@@ -117,7 +119,16 @@ jobs:
           git diff --stat
 
       - name: Install FreeCAD dependencies
+        if: ${{ !startsWith(inputs.runner, 'fleet=') }}
         run: ./package/ubuntu/install-apt-packages.sh
+
+      # Fleet runners install the dependencies in their preinstall hook.
+      - name: Verify preinstalled FreeCAD dependencies
+        if: startsWith(inputs.runner, 'fleet=')
+        run: |
+          cd package/ubuntu
+          sha256sum --check /opt/freecad-preinstall/manifest.sha256
+          sudo apt-get check
       # - name: Verify preinstalled FreeCAD dependencies
       #   run: |
       #     cd package/ubuntu
