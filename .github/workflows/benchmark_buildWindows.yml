@@ -112,10 +112,12 @@ jobs:
         if: inputs.cache == 'change'
         shell: bash
         run: |
-          # Apply to the index (LF) and check the files out, so line endings
-          # follow the runner's git config like every other file.
-          git apply --cached --check .github/benchmark/source-change.patch
-          git apply --cached .github/benchmark/source-change.patch
+          # Read the patch from git (LF; the checked-out copy may be CRLF), apply
+          # it to the index and check the files out, so line endings follow the
+          # runner's git config like every other file.
+          git show HEAD:.github/benchmark/source-change.patch > "$RUNNER_TEMP/source-change.patch"
+          git apply --cached --check "$RUNNER_TEMP/source-change.patch"
+          git apply --cached "$RUNNER_TEMP/source-change.patch"
           git checkout -- src/Mod/Part/App/FeatureCompound.cpp tests/src/Mod/Part/App/FeatureCompound.cpp
           git diff --cached --stat
 
