@@ -1,0 +1,227 @@
+# ***************************************************************************
+# *   Copyright (c) 2023 0penBrain                               *
+# *                                                                         *
+# *   This program is free software; you can redistribute it and/or modify  *
+# *   it under the terms of the GNU Lesser General Public License (LGPL)    *
+# *   as published by the Free Software Foundation; either version 2 of     *
+# *   the License, or (at your option) any later version.                   *
+# *   for detail see the LICENCE text file.                                 *
+# *                                                                         *
+# *   This program is distributed in the hope that it will be useful,       *
+# *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+# *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+# *   GNU Library General Public License for more details.                  *
+# *                                                                         *
+# *   You should have received a copy of the GNU Library General Public     *
+# *   License along with this program; if not, write to the Free Software   *
+# *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  *
+# *   USA                                                                   *
+# *                                                                         *
+# ***************************************************************************
+
+# This is a build and test workflow for CI of FreeCAD.
+# This workflow aims at building and testing FreeCAD on Windows using MSVC.
+
+name: Benchmark Windows
+run-name: Benchmark ${{ inputs.runner }} ${{ inputs.cache }} trial ${{ inputs.trial }}
+
+# Same build and tests as sub_buildWindows.yml (Windows Server 2025 on every
+# runner), with the runner and the cache state chosen per run:
+#   cold    no ccache restore
+#   warm    restore the ccache saved by an earlier run of the same commit
+#   change  warm, plus .github/benchmark/source-change.patch applied first;
+#           saved under a key no restore matches, so the next run still misses
+# GitHub and RunsOn images ship different MSVC builds, so each side keeps its
+# own ccache. Fleet runners get the LibPack and ccache from their preinstall.
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        type: choice
+        required: true
+        options:
+          - windows-2025
+          - windows2025-4cpu-x64
+          - m8azn.large
+          - m8azn.xlarge
+          - fleet=windows-freecad-build
+          - fleet=windows-freecad-build-large
+      cache:
+        type: choice
+        required: true
+        default: warm
+        options:
+          - cold
+          - warm
+          - change
+      trial:
+        type: string
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  Build:
+    runs-on: ${{ startsWith(inputs.runner, 'm8azn.') && format('runs-on={0}/family={1}/image=windows25-full-x64/volume=100gb:gp3:400mbs:3000iops/env=demo', github.run_id, inputs.runner) || startsWith(inputs.runner, 'fleet=') && format('runs-on/{0}/env=demo', inputs.runner) || inputs.runner }}
+    timeout-minutes: 1440
+    env:
+      CCACHE_COMPILERCHECK: "%compiler%" # default:mtime
+      CCACHE_COMPRESS: true
+      CCACHE_COMPRESSLEVEL: 5
+      CCACHE_DIR: C:/FC/cache/
+      CCACHE_LOGFILE: C:/logs/ccache.log
+      CCACHE_MAXSIZE: 1G
+      CCACHE_NODIRECT: true
+      CCACHE_NOHASHDIR: true
+      CCACHE_NOINODECACHE: true
+      CCACHE_SLOPPINESS: "include_file_ctime,include_file_mtime,pch_defines,time_macros" # Can't get PCH to work on Windows
+      ## Have to use C:\ because not enough space on workspace drive
+      builddir: C:/FC/build/release/
+      cacheKey: Windows-${{ (startsWith(inputs.runner, 'm8azn.') || startsWith(inputs.runner, 'fleet=')) && 'runson' || 'github' }}
+      ccachebindir: C:/FC/ccache/
+      config: release
+      libpackdir: C:/FC/libpack/
+      logdir: C:/logs/
+      reportdir: C:/report/
+      reportfilename: Windows-${{ github.run_id }}-report.md
+    outputs:
+      reportFile: ${{ steps.Init.outputs.reportFile }}
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Record runner hardware
+        run: |
+          Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name
+          "Logical CPUs: $env:NUMBER_OF_PROCESSORS"
+          "Memory GB: " + [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
+          (Get-CimInstance Win32_OperatingSystem).Caption
+          Get-PSDrive C | Format-Table Used, Free -AutoSize
+
+      - name: Checking out source code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: true
+
+      - name: Apply benchmark source change
+        if: inputs.cache == 'change'
+        shell: bash
+        run: |
+          # Apply to the index (LF) and check the files out, so line endings
+          # follow the runner's git config like every other file.
+          git apply --cached --check .github/benchmark/source-change.patch
+          git apply --cached .github/benchmark/source-change.patch
+          git checkout -- src/Mod/Part/App/FeatureCompound.cpp tests/src/Mod/Part/App/FeatureCompound.cpp
+          git diff --cached --stat
+
+      - name: Make needed directories, files and initializations
+        id: Init
+        run: |
+          New-Item -ItemType Directory -Force -Path ${{ env.CCACHE_DIR }}, ${{ env.ccachebindir }}, ${{ env.libpackdir }}, ${{ env.builddir }}, ${{ env.logdir }}, ${{ env.reportdir }} | Out-Null
+          echo "reportFile=${{ env.reportfilename }}" >> $GITHUB_OUTPUT
+
+      - name: Get Ccache
+        if: ${{ !startsWith(inputs.runner, 'fleet=') }}
+        uses: ./.github/workflows/actions/windows/getCcache
+        with:
+          ccachebindir: ${{ env.ccachebindir }}
+
+      - name: Get Libpack
+        if: ${{ !startsWith(inputs.runner, 'fleet=') }}
+        uses: ./.github/workflows/actions/windows/getLibpack
+        with:
+          libpackdir: ${{ env.libpackdir }}
+
+      # Must name the same LibPack and ccache as the getLibpack / getCcache defaults.
+      - name: Verify preinstalled LibPack and ccache
+        if: startsWith(inputs.runner, 'fleet=')
+        run: |
+          $expected = @('LibPack-26.3.0-v3.5.3-x64-Release', 'ccache-4.9-windows-x86_64')
+          $actual = @(Get-Content C:\FC\preinstall-manifest.txt)
+          if (Compare-Object $expected $actual) { throw "preinstall manifest mismatch: $actual" }
+          foreach ($f in "${{ env.ccachebindir }}ccache.exe", "${{ env.ccachebindir }}cl.exe", "${{ env.libpackdir }}bin") {
+            if (-not (Test-Path $f)) { throw "missing $f" }
+          }
+
+      - name: Restore compiler cache
+        id: cache-restore
+        if: inputs.cache != 'cold'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: FCB-${{ env.cacheKey }}-${{ github.ref }}-${{ github.run_id }}
+          restore-keys: |
+            FCB-${{ env.cacheKey }}-${{ github.ref }}-
+            FCB-${{ env.cacheKey }}-
+
+      - name: Print Ccache statistics before build, reset stats and print config
+        run: |
+          . $env:ccachebindir\ccache -s
+          . $env:ccachebindir\ccache -z
+          . $env:ccachebindir\ccache -p
+
+      - name: Install cmake
+        uses: jwlawson/actions-setup-cmake@0d6a7d60b009d01c9e7523be22153ff8f19460d3 # v2.2.0
+        with:
+          cmake-version: '3.31.6'
+
+      - name: Configuring CMake
+        run: >
+          cmake -B"${{ env.builddir }}" .
+          --preset ${{ env.config }}
+          -DCMAKE_VS_NO_COMPILE_BATCHING=ON
+          -DCMAKE_BUILD_TYPE=Release
+          -DFREECAD_USE_PCH=OFF
+          -DFREECAD_RELEASE_PDB=OFF
+          -DFREECAD_LIBPACK_DIR="${{ env.libpackdir }}"
+          -DFREECAD_COPY_DEPEND_DIRS_TO_BUILD=ON
+          -DFREECAD_COPY_LIBPACK_BIN_TO_BUILD=ON
+          -DFREECAD_COPY_PLUGINS_BIN_TO_BUILD=ON
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
+
+      - name: Compiling sources
+        run: |
+          cd $env:builddir
+          msbuild ALL_BUILD.vcxproj /m /p:Configuration=Release /p:TrackFileAccess=false /p:CLToolPath=${{ env.ccachebindir }}
+
+      - name: Print Ccache statistics after build
+        run: |
+          . $env:ccachebindir\ccache -s
+
+      - name: C++ unit tests
+        if: false # Disabled because seems to not function on Windows build  # also: && !inputs.skipBuild
+        timeout-minutes: 1
+        run: |
+          . ${{ env.builddir }}\tests\Release\Tests_run --gtest_output=json:${{ env.reportdir }}gtest_results.json # 2>&1 | tee -filepath ${{ env.logdir }}\unitTests.log
+
+      - name: FreeCAD CLI tests
+        run: |
+          . ${{ env.builddir }}\bin\FreeCADCmd -t 0 # 2>&1 | tee -filepath ${{ env.logdir }}\integrationTests.log
+
+      - name: Save Compiler Cache
+        id: cache-save
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ inputs.cache == 'change' && 'FCB-change' || 'FCB' }}-${{ env.cacheKey }}-${{ github.ref }}-${{ github.run_id }}
+
+      - name: Record benchmark state
+        if: always()
+        run: |
+          "runner: ${{ inputs.runner }}", "cache: ${{ inputs.cache }}", "trial: ${{ inputs.trial }}", "restored: ${{ steps.cache-restore.outputs.cache-matched-key || 'none' }}" | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+          Get-PSDrive C | Format-Table Used, Free -AutoSize
+
+      - name: Upload logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Windows-${{ github.run_id }}-Logs
+          path: |
+            ${{ env.logdir }}
