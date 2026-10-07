@@ -25,8 +25,8 @@
 name: Benchmark Windows
 run-name: Benchmark ${{ inputs.runner }} ${{ inputs.cache }} trial ${{ inputs.trial }}
 
-# Same build and tests as sub_buildWindows.yml (Windows Server 2025 on every
-# runner), with the runner and the cache state chosen per run:
+# Same build and tests as sub_buildWindows.yml (Windows Server 2022 and VS 2022
+# on every runner, as upstream pins), with the runner and the cache state chosen per run:
 #   cold    no ccache restore
 #   warm    restore the ccache saved by an earlier run of the same commit
 #   change  warm, plus .github/benchmark/source-change.patch applied first;
@@ -40,8 +40,7 @@ on:
         type: choice
         required: true
         options:
-          - windows-2025
-          - windows2025-4cpu-x64
+          - windows-2022
           - m8azn.large
           - m8azn.xlarge
           - fleet=windows-freecad-build
@@ -64,7 +63,7 @@ permissions:
 
 jobs:
   Build:
-    runs-on: ${{ startsWith(inputs.runner, 'm8azn.') && format('runs-on={0}/family={1}/image=windows25-full-x64/volume=100gb:gp3:400mbs:3000iops/env=demo', github.run_id, inputs.runner) || startsWith(inputs.runner, 'fleet=') && format('runs-on/{0}/env=demo', inputs.runner) || inputs.runner }}
+    runs-on: ${{ startsWith(inputs.runner, 'm8azn.') && format('runs-on={0}/family={1}/image=windows22-full-x64/volume=100gb:gp3:400mbs:3000iops/env=demo', github.run_id, inputs.runner) || startsWith(inputs.runner, 'fleet=') && format('runs-on/{0}/env=demo', inputs.runner) || inputs.runner }}
     timeout-minutes: 1440
     env:
       CCACHE_COMPILERCHECK: "%compiler%" # default:mtime
