@@ -46,6 +46,8 @@ on:
           - m8azn.xlarge
           - fleet=windows-freecad-build
           - fleet=windows-freecad-build-large
+          - fleet=windows-freecad-build-hot
+          - fleet=windows-freecad-build-large-hot
       cache:
         type: choice
         required: true
