@@ -54,7 +54,7 @@ permissions:
 jobs:
 
   Build:
-    runs-on: ubuntu-26.04
+    runs-on: runs-on=${{ github.run_id }}/env=dev-sujoysingh/family=m8azn.xlarge/image=ubuntu26-full-x64
     continue-on-error: ${{ inputs.allowedToFail }}
     env:
       CCACHE_COMPILERCHECK: "%compiler% -dumpfullversion -dumpversion" # default:mtime

@@ -73,7 +73,7 @@ jobs:
       logdir: /tmp/logs/
       reportdir: /tmp/report/
       reportfilename: ${{ inputs.artifactBasename }}-report.md
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}/env=dev-sujoysingh/family=m8azn.xlarge/image=ubuntu24-full-x64
     defaults:
       run:
         shell: bash

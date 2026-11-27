@@ -45,7 +45,7 @@ permissions:
 jobs:
 
   WrapUp:
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}/env=dev-sujoysingh/family=m8azn.xlarge/image=ubuntu24-full-x64
     env:
       artifactsDownloadDir: /tmp/artifacts/
     defaults:
